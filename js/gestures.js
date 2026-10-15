@@ -174,28 +174,9 @@ class JutsuGestureDetector {
     }
 
     // ==========================================
-    // STEP 1: CHECK TWO-HANDED SIGNS (Priority)
+    // STEP 1: CHECK TWO-HANDED SIGN: SHADOW CLONE
     // ==========================================
     if (h2) {
-      // 7. SUSANOO: Both hands raised high in the air
-      if (this.isBothHandsUp(h1, h2)) {
-        result.primaryJutsu = 'susanoo';
-        result.confidence = 0.95;
-        result.handSignName = '🛡️ HANDS RAISED HIGH ➔ SUSANOO';
-        this.pushHistory('susanoo');
-        return result;
-      }
-
-      // 5. REAPER DEATH SEAL: Both hands pressed in prayer pose
-      if (this.isPrayerHands(h1, h2)) {
-        result.primaryJutsu = 'reaper';
-        result.confidence = 0.95;
-        result.handSignName = '🙏 PRAYER SEAL (GASSHŌ) ➔ REAPER SEAL';
-        this.pushHistory('reaper');
-        return result;
-      }
-
-      // 3. SHADOW CLONE: Hands crossing each other in '+' seal
       if (this.isCrossSeal(h1, h2, h1States, h2States)) {
         result.primaryJutsu = 'clone';
         result.confidence = 0.92;

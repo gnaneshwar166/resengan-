@@ -41,14 +41,9 @@ class JutsuEffectsEngine {
         this.spawnSmokeExplosion(this.canvas.width * 0.75, this.canvas.height * 0.5);
       }
       else if (jutsuName === 'fireball') window.jutsuAudio.startFireball();
-      else if (jutsuName === 'reaper') window.jutsuAudio.playReaperDeathSeal();
       else if (jutsuName === 'kamui') {
         window.jutsuAudio.playSharingan();
         setTimeout(() => window.jutsuAudio && window.jutsuAudio.playKamui(), 600);
-      }
-      else if (jutsuName === 'susanoo') {
-        window.jutsuAudio.playSharingan();
-        setTimeout(() => window.jutsuAudio && window.jutsuAudio.playSusanoo(), 600);
       }
     }
 
@@ -156,14 +151,8 @@ class JutsuEffectsEngine {
       case 'fireball':
         this.renderFireball(mouth, hand1, w, h, charge);
         break;
-      case 'reaper':
-        this.renderReaperDeathSeal(headCenter, w, h, charge);
-        break;
       case 'kamui':
         this.renderSharinganKamui(leftEye, rightEye, eyeDist, w, h, charge);
-        break;
-      case 'susanoo':
-        this.renderSharinganSusanoo(leftEye, rightEye, headCenter, eyeDist, w, h, charge);
         break;
     }
 

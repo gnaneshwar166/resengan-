@@ -20,31 +20,27 @@
 
 | Jutsu | Japanese | In-Game Trigger | Visual & Sound Effects |
 |---|---|---|---|
-| **Rasengan** | 螺旋丸 | Open Palm (Key `1`) | Spiraling chakra sphere with rotating logarithmic filaments & high-speed chakra whirr |
-| **Chidori** | 千鳥 | Clenched Fist / Claw (Key `2`) | Fractal branching lightning bolts, high-voltage corona glow & 1,000 birds chirping |
+| **Rasengan** | 螺旋丸 | Open Palm (Key `1`) | Spiraling chakra sphere with rotating logarithmic filaments & high-speed chakra whirr directly on palm |
+| **Chidori** | 千鳥 | Clenched Fist (Key `2`) | Fractal branching lightning bolts, high-voltage corona glow & 1,000 birds chirping directly on knuckles |
 | **Shadow Clone** | 影分身の術 | Cross Seal `+` (Key `3`) | Manga smoke explosion (*POOF!*), clone video projections on left and right |
-| **Fireball** | 火遁・豪火球の術 | Tiger Seal at Mouth (Key `4`) | Roaring furnace blast, mouth-to-core fire jet, swirling flame tongues & ember sparks |
-| **Reaper Death Seal** | 封印術・屍鬼封尽 | Prayer Hands (Key `5`) | Spectral Shinigami with horns and sealing dagger, purple soul wisps & cursed kanji circle |
-| **Sharingan ➔ Kamui** | 写輪眼 ➔ 神威 | Hand near Eye (Key `6`) | Rotating 3-Tomoe Sharingan morphs to Mangekyō, tearing open the spacetime suction vortex |
-| **Sharingan ➔ Susanoo** | 写輪眼 ➔ 須佐能乎 | Arms Raised Wide (Key `7`) | Colossal glowing purple chakra ribcage, ethereal horns, titan eyes & flaming armor |
+| **Fireball** | 火遁・豪火球の術 | Hand at Mouth (Key `4`) | Roaring furnace blast, mouth-to-core fire jet, swirling flame tongues & ember sparks |
+| **Sharingan ➔ Kamui** | 写輪眼 ➔ 神威 | Finger at Eye (Key `5`) | Rotating 3-Tomoe Sharingan morphs to Mangekyō, tearing open the spacetime suction vortex |
 
 ---
 
 ## ✋ Hand Sign Guide & Triggers
 
-1. **🌀 Rasengan (螺旋丸)**: Hold an **open palm facing the camera** with fingers extended.
-2. **⚡ Chidori (千鳥)**: Clench your fingers into a **tight downward claw or fist**.
-3. **👥 Shadow Clone (影分身の術)**: Form the classic **cross seal (+)** with index/middle fingers or bring both hands together.
-4. **🔥 Fireball (火遁・豪火球の術)**: Form the **Tiger seal** (index/middle upright) or hold your hand near your mouth/chin.
-5. **💀 Reaper Death Seal (封印術・屍鬼封尽)**: Clasp both hands flat together in a **prayer pose (Gasshō)** at chest height.
-6. **👁️ Sharingan ➔ Kamui (写輪眼 ➔ 神威)**: Bring your index finger up close to your **eye / temple**.
-7. **🛡️ Sharingan ➔ Susanoo (写輪眼 ➔ 須佐能乎)**: Raise **both arms high and wide** or cross your arms over your chest.
+1. **🌀 Rasengan (螺旋丸)**: Hold an **open palm facing the camera** (Key `1`).
+2. **⚡ Chidori (千鳥)**: Clench your fingers into a **tight fist** (Key `2`).
+3. **👥 Shadow Clone (影分身の術)**: Form the classic **cross seal (+)** with two hands (Key `3`).
+4. **🔥 Fireball (火遁・豪火球の術)**: Hold your hand directly in front of your **mouth / chin** (Key `4`).
+5. **👁️ Sharingan ➔ Kamui (写輪眼 ➔ 神威)**: Point your index finger directly at your **eye / temple** (Key `5`).
 
 ---
 
 ## 🕹️ Controls & Hotkeys
 
-- **`1` – `7`**: Instantly switch to and lock any Jutsu
+- **`1` – `5`**: Instantly switch to and lock any Jutsu
 - **`A`**: Toggle **Auto-Gesture Recognition Mode** (detects real hand signs automatically)
 - **`M`**: Mute / Unmute procedural anime sound effects (SFX)
 - **`G`**: Open / Close the in-app **Shinobi Hand Sign Manual**

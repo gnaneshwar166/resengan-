@@ -31,7 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
     none: {
       kanji: '待機中',
       english: 'STANDBY · SHOW A SIGN',
-      hint: '🖐️ Palm: Rasengan | ✊ Fist: Chidori | ➕ Cross: Clone | 🔥 Mouth: Fireball | 🙏 Prayer: Reaper | 👁️ Eye: Kamui | 🛡️ Hands Up: Susanoo',
+      hint: '🖐️ Palm: Rasengan | ✊ Fist: Chidori | ➕ Cross: Clone | 🔥 Mouth: Fireball | 👁️ Eye: Kamui',
       color: '#4a5568'
     },
     rasengan: {
@@ -58,23 +58,11 @@ document.addEventListener('DOMContentLoaded', () => {
       hint: '🔥 Hand held directly in front of mouth',
       color: '#ff5500'
     },
-    reaper: {
-      kanji: '封印術・屍鬼封尽',
-      english: 'REAPER DEATH SEAL (SHIKI FŪJIN)',
-      hint: '🙏 Both hands pressed in Prayer (Gasshō)',
-      color: '#9d4edd'
-    },
     kamui: {
       kanji: '写輪眼 ➔ 神威',
       english: 'SHARINGAN ➔ KAMUI VORTEX',
       hint: '👁️ Index finger pointing at eye / temple',
       color: '#ff0055'
-    },
-    susanoo: {
-      kanji: '写輪眼 ➔ 須佐能乎',
-      english: 'SHARINGAN ➔ SUSANOO AVATAR',
-      hint: '🛡️ Both hands raised high in the air',
-      color: '#c77dff'
     }
   };
 
@@ -201,9 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
       '2': 'chidori',
       '3': 'clone',
       '4': 'fireball',
-      '5': 'reaper',
-      '6': 'kamui',
-      '7': 'susanoo'
+      '5': 'kamui'
     };
     if (keyMap[e.key]) {
       setManualMode();
