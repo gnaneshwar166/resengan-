@@ -28,61 +28,71 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Metadata for each Jutsu
   const JUTSU_DATA = {
+    none: {
+      kanji: '待機中',
+      english: 'STANDBY · PERFORM A JUTSU SIGN',
+      hint: '🖐️ Palm: Rasengan | ✊ Claw: Chidori | ➕ Cross: Clone | 🐯 Mouth: Fireball',
+      color: '#4a5568'
+    },
     rasengan: {
       kanji: '螺旋丸',
       english: 'RASENGAN · SPIRALING SPHERE',
-      hint: '🖐️ Trigger: Open Palm facing camera',
+      hint: '🖐️ Open Palm facing camera',
       color: '#00f0ff'
     },
     chidori: {
       kanji: '千鳥',
       english: 'CHIDORI · THOUSAND BIRDS',
-      hint: '✊ Trigger: Clenched Fist / Claw downwards',
+      hint: '✊ Clenched Fist / Claw downwards',
       color: '#70d6ff'
     },
     clone: {
       kanji: '影分身の術',
       english: 'SHADOW CLONE JUTSU',
-      hint: '➕ Trigger: Cross Fingers Seal (+) or 2 hands together',
+      hint: '➕ Cross Fingers Seal (+) or 2 hands together',
       color: '#ff9f1a'
     },
     fireball: {
       kanji: '火遁・豪火球の術',
       english: 'FIREBALL JUTSU (KATON)',
-      hint: '🐯 Trigger: Tiger Hand Seal in front of mouth',
+      hint: '🐯 Tiger Hand Seal in front of mouth',
       color: '#ff5500'
     },
     reaper: {
       kanji: '封印術・屍鬼封尽',
       english: 'REAPER DEATH SEAL (SHIKI FŪJIN)',
-      hint: '🙏 Trigger: Prayer Hands (Gasshō) at chest',
+      hint: '🙏 Prayer Hands (Gasshō) at chest',
       color: '#9d4edd'
     },
     kamui: {
       kanji: '写輪眼 ➔ 神威',
       english: 'SHARINGAN ➔ KAMUI VORTEX',
-      hint: '👁️ Trigger: Index Finger near eye / temple',
+      hint: '👁️ Index Finger near eye / temple',
       color: '#ff0055'
     },
     susanoo: {
       kanji: '写輪眼 ➔ 須佐能乎',
       english: 'SHARINGAN ➔ SUSANOO AVATAR',
-      hint: '🛡️ Trigger: Both Arms Raised Wide or Crossed',
+      hint: '🛡️ Both Arms Raised Wide or Crossed',
       color: '#c77dff'
     }
   };
 
   // State
   let detectionMode = 'auto'; // 'auto' | 'manual'
-  let activeJutsu = 'rasengan';
+  let manualTarget = 'rasengan';
+  let activeJutsu = 'none'; // START DORMANT
+  let charge = 0.0; // 0.0 to 1.0
+  let framesSinceHand = 99;
+
   let showSkeleton = true;
   let lastHandsData = null;
   let lastFaceLandmarks = null;
   let faceMeshReady = false;
 
-  // Initialize Effects Engine
+  // Initialize Effects Engine (starts dormant with 'none')
   const effects = new JutsuEffectsEngine(effectsCanvas, camVideo);
-  effects.setJutsu('rasengan');
+  effects.setJutsu('none');
 
   // PALETTES for Skeleton Bones
   const PALETTES = {
@@ -90,18 +100,25 @@ document.addEventListener('DOMContentLoaded', () => {
     Right: { bone: '#62f0ff', joint: '#ff66e0', glow: '#1aa6ff' }
   };
 
-  function updateHUD(jutsuKey, signName = null) {
-    const data = JUTSU_DATA[jutsuKey];
-    if (!data) return;
+  function updateHUD(jutsuKey, customHint = null) {
+    const data = JUTSU_DATA[jutsuKey] || JUTSU_DATA.none;
 
     kanjiTitle.textContent = data.kanji;
     englishTitle.textContent = data.english;
-    handSignHint.textContent = signName || data.hint;
-    chakraFill.style.background = `linear-gradient(90deg, ${data.color}, #ffffff)`;
-    chakraFill.style.boxShadow = `0 0 12px ${data.color}`;
+    handSignHint.textContent = customHint || data.hint;
+
+    if (jutsuKey === 'none') {
+      chakraFill.style.background = 'rgba(255, 255, 255, 0.2)';
+      chakraFill.style.boxShadow = 'none';
+    } else {
+      chakraFill.style.background = `linear-gradient(90deg, ${data.color}, #ffffff)`;
+      chakraFill.style.boxShadow = `0 0 12px ${data.color}`;
+    }
 
     jutsuBtns.forEach(btn => {
-      if (btn.dataset.jutsu === jutsuKey) {
+      if (detectionMode === 'manual' && btn.dataset.jutsu === manualTarget) {
+        btn.classList.add('active');
+      } else if (detectionMode === 'auto' && btn.dataset.jutsu === jutsuKey) {
         btn.classList.add('active');
       } else {
         btn.classList.remove('active');
@@ -116,12 +133,16 @@ document.addEventListener('DOMContentLoaded', () => {
     updateHUD(key);
   }
 
+  // Initialize HUD in Standby mode
+  updateHUD('none');
+
   // UI Event Listeners
   jutsuBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       if (window.jutsuAudio) window.jutsuAudio.resume();
       const jutsu = btn.dataset.jutsu;
       setManualMode();
+      manualTarget = jutsu;
       setActiveJutsu(jutsu, true);
     });
   });
@@ -130,6 +151,7 @@ document.addEventListener('DOMContentLoaded', () => {
     detectionMode = 'auto';
     modeAuto.classList.add('active');
     modeManual.classList.remove('active');
+    setActiveJutsu('none');
   }
 
   function setManualMode() {
@@ -146,6 +168,7 @@ document.addEventListener('DOMContentLoaded', () => {
   modeManual.addEventListener('click', () => {
     if (window.jutsuAudio) window.jutsuAudio.resume();
     setManualMode();
+    setActiveJutsu(manualTarget, true);
   });
 
   sfxBtn.addEventListener('click', () => {
@@ -170,7 +193,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.target === guideModal) guideModal.classList.remove('open');
   });
 
-  // Hotkeys 1-7, A for Auto, M for Mute, G for Guide
+  // Hotkeys
   window.addEventListener('keydown', (e) => {
     if (window.jutsuAudio) window.jutsuAudio.resume();
     const keyMap = {
@@ -184,7 +207,8 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     if (keyMap[e.key]) {
       setManualMode();
-      setActiveJutsu(keyMap[e.key], true);
+      manualTarget = keyMap[e.key];
+      setActiveJutsu(manualTarget, true);
     } else if (e.key === 'a' || e.key === 'A') {
       setAutoMode();
     } else if (e.key === 'm' || e.key === 'M') {
@@ -204,7 +228,6 @@ document.addEventListener('DOMContentLoaded', () => {
     snapCanvas.height = h;
     const snapCtx = snapCanvas.getContext('2d');
 
-    // Flip horizontal to match mirrored webcam
     snapCtx.translate(w, 0);
     snapCtx.scale(-1, 1);
     snapCtx.drawImage(camVideo, 0, 0, w, h);
@@ -259,9 +282,17 @@ document.addEventListener('DOMContentLoaded', () => {
   function onHandsResults(res) {
     resize();
     lastHandsData = res;
+
+    const hasHands = res && res.multiHandLandmarks && res.multiHandLandmarks.length > 0;
+    if (hasHands) {
+      framesSinceHand = 0;
+    } else {
+      framesSinceHand++;
+    }
+
     if (showSkeleton) {
       pen.clearRect(0, 0, skeletonCanvas.width, skeletonCanvas.height);
-      if (res.multiHandLandmarks && res.multiHandedness) {
+      if (hasHands && res.multiHandedness) {
         res.multiHandLandmarks.forEach((lm, i) => {
           const label = res.multiHandedness[i] ? res.multiHandedness[i].label : 'Left';
           const colors = PALETTES[label] || PALETTES.Left;
@@ -270,13 +301,41 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // Gesture Detection in Auto Mode
+    // Gesture & Charge Logic
     if (detectionMode === 'auto') {
       const detected = window.jutsuDetector.detect(res, lastFaceLandmarks);
       const stable = window.jutsuDetector.getStableGesture();
-      if (stable && stable !== 'none' && JUTSU_DATA[stable]) {
-        setActiveJutsu(stable);
+
+      if (stable !== 'none' && JUTSU_DATA[stable]) {
+        // Valid gesture held! Ramp charge up
+        charge = Math.min(1.0, charge + 0.09);
+        if (activeJutsu !== stable && charge > 0.12) {
+          setActiveJutsu(stable);
+        }
         updateHUD(stable, detected.handSignName);
+      } else {
+        // No gesture or resting hands! Decay charge down
+        charge = Math.max(0.0, charge - 0.16);
+        if (charge <= 0.01) {
+          if (activeJutsu !== 'none') {
+            setActiveJutsu('none');
+          }
+          updateHUD('none');
+        }
+      }
+    } else {
+      // Manual Lock Mode: Only casts when hands are actually present
+      if (hasHands) {
+        charge = Math.min(1.0, charge + 0.09);
+        if (activeJutsu !== manualTarget) {
+          setActiveJutsu(manualTarget);
+        }
+      } else {
+        charge = Math.max(0.0, charge - 0.16);
+        if (charge <= 0.01 && activeJutsu !== 'none') {
+          setActiveJutsu('none');
+          updateHUD(manualTarget, 'Show hand to cast ' + manualTarget.toUpperCase());
+        }
       }
     }
   }
@@ -294,9 +353,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const dt = Math.min(0.1, (now - lastTime) / 1000);
     lastTime = now;
 
+    // Decay if no hand frames arrived recently
+    if (framesSinceHand > 4) {
+      charge = Math.max(0.0, charge - 0.16);
+      if (charge <= 0.01 && activeJutsu !== 'none') {
+        setActiveJutsu('none');
+        updateHUD('none');
+      }
+    }
+
+    // Update Chakra Bar Fill
+    chakraFill.style.width = `${(charge * 100).toFixed(0)}%`;
+
     effects.update(dt);
     effects.clear();
-    effects.render(lastHandsData, lastFaceLandmarks);
+    effects.render(lastHandsData, lastFaceLandmarks, charge);
 
     requestAnimationFrame(renderLoop);
   }
@@ -314,7 +385,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   hands.onResults(onHandsResults);
 
-  // Initialize MediaPipe FaceMesh for Eye & Mouth Tracking
+  // Initialize MediaPipe FaceMesh
   let faceMesh = null;
   try {
     if (window.FaceMesh) {
@@ -340,7 +411,6 @@ document.addEventListener('DOMContentLoaded', () => {
     onFrame: async () => {
       frameCount++;
       await hands.send({ image: camVideo });
-      // Send every 2nd frame to FaceMesh to optimize CPU/GPU performance
       if (faceMesh && faceMeshReady && frameCount % 2 === 0) {
         try {
           await faceMesh.send({ image: camVideo });

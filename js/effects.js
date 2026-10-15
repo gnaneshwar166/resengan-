@@ -13,15 +13,9 @@ class JutsuEffectsEngine {
     this.time = 0;
     this.particles = [];
     this.smokePuffs = [];
-    this.lightningArcs = [];
-    this.activeJutsu = 'rasengan';
+    this.activeJutsu = 'none'; // START DORMANT
     this.charge = 0; // 0 to 1
 
-    // State trackers
-    this.cloneActive = false;
-    this.lastJutsu = null;
-    this.kamuiPhase = 0; // 0: Sharingan, 1: Mangekyo, 2: Kamui vortex
-    this.susanooPhase = 0; // 0: Sharingan, 1: Ribcage, 2: Full Avatar
     this.kamuiTimer = 0;
     this.susanooTimer = 0;
 
@@ -30,48 +24,46 @@ class JutsuEffectsEngine {
   }
 
   setJutsu(jutsuName) {
-    if (this.activeJutsu !== jutsuName) {
-      this.lastJutsu = this.activeJutsu;
-      this.activeJutsu = jutsuName;
-      this.charge = 0.2;
-      this.kamuiTimer = 0;
-      this.susanooTimer = 0;
+    if (this.activeJutsu === jutsuName) return;
 
-      // Trigger audio on switch
-      if (window.jutsuAudio) {
-        window.jutsuAudio.stopRasengan();
-        window.jutsuAudio.stopChidori();
-        window.jutsuAudio.stopFireball();
+    this.activeJutsu = jutsuName;
+    this.kamuiTimer = 0;
+    this.susanooTimer = 0;
 
-        if (jutsuName === 'rasengan') window.jutsuAudio.startRasengan();
-        else if (jutsuName === 'chidori') window.jutsuAudio.startChidori();
-        else if (jutsuName === 'clone') {
-          window.jutsuAudio.playShadowClone();
-          this.spawnSmokeExplosion(this.canvas.width * 0.25, this.canvas.height * 0.5);
-          this.spawnSmokeExplosion(this.canvas.width * 0.75, this.canvas.height * 0.5);
-        }
-        else if (jutsuName === 'fireball') window.jutsuAudio.startFireball();
-        else if (jutsuName === 'reaper') window.jutsuAudio.playReaperDeathSeal();
-        else if (jutsuName === 'kamui') {
-          window.jutsuAudio.playSharingan();
-          setTimeout(() => window.jutsuAudio && window.jutsuAudio.playKamui(), 700);
-        }
-        else if (jutsuName === 'susanoo') {
-          window.jutsuAudio.playSharingan();
-          setTimeout(() => window.jutsuAudio && window.jutsuAudio.playSusanoo(), 600);
-        }
+    if (window.jutsuAudio) {
+      window.jutsuAudio.stopAll();
+
+      if (jutsuName === 'rasengan') window.jutsuAudio.startRasengan();
+      else if (jutsuName === 'chidori') window.jutsuAudio.startChidori();
+      else if (jutsuName === 'clone') {
+        window.jutsuAudio.playShadowClone();
+        this.spawnSmokeExplosion(this.canvas.width * 0.25, this.canvas.height * 0.5);
+        this.spawnSmokeExplosion(this.canvas.width * 0.75, this.canvas.height * 0.5);
       }
+      else if (jutsuName === 'fireball') window.jutsuAudio.startFireball();
+      else if (jutsuName === 'reaper') window.jutsuAudio.playReaperDeathSeal();
+      else if (jutsuName === 'kamui') {
+        window.jutsuAudio.playSharingan();
+        setTimeout(() => window.jutsuAudio && window.jutsuAudio.playKamui(), 700);
+      }
+      else if (jutsuName === 'susanoo') {
+        window.jutsuAudio.playSharingan();
+        setTimeout(() => window.jutsuAudio && window.jutsuAudio.playSusanoo(), 600);
+      }
+    }
+
+    if (jutsuName === 'none') {
+      this.orbs.forEach(orb => orb.style.opacity = '0');
     }
   }
 
   // Update loop called every frame
   update(dt = 0.016) {
     this.time += dt;
-    this.kamuiTimer += dt;
-    this.susanooTimer += dt;
-
-    // Ramp charge up smoothly
-    this.charge = Math.min(1.0, this.charge + dt * 1.5);
+    if (this.activeJutsu !== 'none') {
+      this.kamuiTimer += dt;
+      this.susanooTimer += dt;
+    }
 
     // Update particles
     for (let i = this.particles.length - 1; i >= 0; i--) {
@@ -106,12 +98,19 @@ class JutsuEffectsEngine {
   }
 
   // Render all active effects
-  render(handsData, faceLandmarks) {
+  render(handsData, faceLandmarks, charge = 1.0) {
     const w = this.canvas.width;
     const h = this.canvas.height;
     if (w === 0 || h === 0) return;
 
-    // Hide html video orbs by default unless rasengan is active
+    // IF DORMANT OR CHARGE NEAR ZERO: DO NOT DRAW ANYTHING!
+    if (this.activeJutsu === 'none' || charge <= 0.01) {
+      this.orbs.forEach(orb => orb.style.opacity = '0');
+      this.renderSmokePuffs();
+      return;
+    }
+
+    // Hide rasengan videos unless rasengan is the active jutsu
     if (this.activeJutsu !== 'rasengan') {
       this.orbs.forEach(orb => orb.style.opacity = '0');
     }
@@ -131,7 +130,6 @@ class JutsuEffectsEngine {
 
     if (faceLandmarks && faceLandmarks[0]) {
       const fl = faceLandmarks[0];
-      // FaceMesh eye landmarks: 33/133 right eye, 362/263 left eye
       if (fl[133] && fl[33]) {
         rightEye = { x: (1 - (fl[33].x + fl[133].x) / 2) * w, y: ((fl[33].y + fl[133].y) / 2) * h };
       }
@@ -150,25 +148,25 @@ class JutsuEffectsEngine {
     // Dispatch effect renderers
     switch (this.activeJutsu) {
       case 'rasengan':
-        this.renderRasengan(hand1, hand2, w, h);
+        this.renderRasengan(hand1, hand2, w, h, charge);
         break;
       case 'chidori':
-        this.renderChidori(hand1, hand2, w, h);
+        this.renderChidori(hand1, hand2, w, h, charge);
         break;
       case 'clone':
-        this.renderShadowClone(w, h);
+        this.renderShadowClone(w, h, charge);
         break;
       case 'fireball':
-        this.renderFireball(mouth, hand1, w, h);
+        this.renderFireball(mouth, hand1, w, h, charge);
         break;
       case 'reaper':
-        this.renderReaperDeathSeal(headCenter, w, h);
+        this.renderReaperDeathSeal(headCenter, w, h, charge);
         break;
       case 'kamui':
-        this.renderSharinganKamui(leftEye, rightEye, eyeDist, w, h);
+        this.renderSharinganKamui(leftEye, rightEye, eyeDist, w, h, charge);
         break;
       case 'susanoo':
-        this.renderSharinganSusanoo(leftEye, rightEye, headCenter, eyeDist, w, h);
+        this.renderSharinganSusanoo(leftEye, rightEye, headCenter, eyeDist, w, h, charge);
         break;
     }
 
@@ -180,12 +178,11 @@ class JutsuEffectsEngine {
   // ==========================================
   // 1. RASENGAN RENDERER
   // ==========================================
-  renderRasengan(hand1, hand2, w, h) {
+  renderRasengan(hand1, hand2, w, h, charge) {
     const hands = [hand1, hand2].filter(Boolean);
-
+    // ONLY DRAW IF HAND IS PRESENT!
     if (hands.length === 0) {
-      // Default center preview if no hand detected
-      this.drawProceduralRasengan(w * 0.5, h * 0.5, 95, this.charge);
+      this.orbs.forEach(orb => orb.style.opacity = '0');
       return;
     }
 
@@ -195,10 +192,10 @@ class JutsuEffectsEngine {
       const cx = (1 - (wrist.x + midKnk.x) / 2) * w;
       const handSpan = Math.hypot((hand[9].x - hand[0].x) * w, (hand[9].y - hand[0].y) * h);
       const cy = ((wrist.y + midKnk.y) / 2) * h - handSpan * 0.85;
-      const radius = Math.max(55, Math.min(140, handSpan * 0.75));
+      const radius = Math.max(50, Math.min(135, handSpan * 0.75)) * charge;
 
       // Draw procedural energy sphere
-      this.drawProceduralRasengan(cx, cy, radius, this.charge);
+      this.drawProceduralRasengan(cx, cy, radius, charge);
 
       // Support original video element overlay if present
       if (this.orbs[idx]) {
@@ -206,7 +203,7 @@ class JutsuEffectsEngine {
         orb.style.left = `${cx}px`;
         orb.style.top = `${cy}px`;
         orb.style.width = `${radius * 7.5}px`;
-        orb.style.opacity = (this.charge * 0.85).toFixed(2);
+        orb.style.opacity = (charge * 0.85).toFixed(2);
       }
     });
   }
@@ -214,6 +211,7 @@ class JutsuEffectsEngine {
   drawProceduralRasengan(x, y, radius, charge) {
     const ctx = this.ctx;
     ctx.save();
+    ctx.globalAlpha = Math.min(1.0, charge);
 
     // 1. Outer cyan aura
     const grad = ctx.createRadialGradient(x, y, radius * 0.2, x, y, radius * 1.5);
@@ -259,8 +257,8 @@ class JutsuEffectsEngine {
     ctx.arc(x, y, radius * 0.45, 0, Math.PI * 2);
     ctx.fill();
 
-    // 4. Spawn swirling outer chakra sparks
-    if (Math.random() < 0.65) {
+    // 4. Outer chakra sparks
+    if (Math.random() < 0.65 * charge) {
       const angle = Math.random() * Math.PI * 2;
       const dist = radius * (0.8 + Math.random() * 0.5);
       this.particles.push({
@@ -281,26 +279,24 @@ class JutsuEffectsEngine {
   // ==========================================
   // 2. CHIDORI RENDERER
   // ==========================================
-  renderChidori(hand1, hand2, w, h) {
+  renderChidori(hand1, hand2, w, h, charge) {
     const hands = [hand1, hand2].filter(Boolean);
-    let targetX = w * 0.5;
-    let targetY = h * 0.65;
-    let handSpan = 100;
+    // ONLY DRAW IF HAND IS PRESENT!
+    if (hands.length === 0) return;
 
-    if (hands.length > 0) {
-      const hand = hands[0];
-      const wrist = hand[0];
-      const knk = hand[9];
-      targetX = (1 - (wrist.x + knk.x) / 2) * w;
-      targetY = ((wrist.y + knk.y) / 2) * h;
-      handSpan = Math.hypot((knk.x - wrist.x) * w, (knk.y - wrist.y) * h) * 1.2;
-    }
+    const hand = hands[0];
+    const wrist = hand[0];
+    const knk = hand[9];
+    const targetX = (1 - (wrist.x + knk.x) / 2) * w;
+    const targetY = ((wrist.y + knk.y) / 2) * h;
+    const handSpan = Math.hypot((knk.x - wrist.x) * w, (knk.y - wrist.y) * h) * 1.2;
 
     const ctx = this.ctx;
     ctx.save();
+    ctx.globalAlpha = Math.min(1.0, charge);
 
     // 1. Blinding lightning core
-    const coreRadius = Math.max(40, handSpan * 0.55);
+    const coreRadius = Math.max(35, handSpan * 0.55) * charge;
     const grad = ctx.createRadialGradient(targetX, targetY, 0, targetX, targetY, coreRadius * 1.8);
     grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
     grad.addColorStop(0.3, 'rgba(120, 235, 255, 0.9)');
@@ -313,7 +309,7 @@ class JutsuEffectsEngine {
     ctx.fill();
 
     // 2. Recursive branching lightning bolts
-    const boltCount = 10;
+    const boltCount = Math.floor(10 * charge);
     ctx.shadowBlur = 22;
     ctx.shadowColor = '#00f0ff';
 
@@ -328,7 +324,7 @@ class JutsuEffectsEngine {
     // 3. Electric sparks flying off
     for (let s = 0; s < 3; s++) {
       const spAngle = Math.random() * Math.PI * 2;
-      const spSpeed = Math.random() * 8 + 4;
+      const spSpeed = (Math.random() * 8 + 4) * charge;
       this.particles.push({
         x: targetX,
         y: targetY,
@@ -365,7 +361,6 @@ class JutsuEffectsEngine {
     }
     segments.push({ x: x2, y: y2 });
 
-    // Outer glow stroke
     ctx.beginPath();
     ctx.moveTo(segments[0].x, segments[0].y);
     for (let i = 1; i < segments.length; i++) {
@@ -375,12 +370,10 @@ class JutsuEffectsEngine {
     ctx.lineWidth = 3.5;
     ctx.stroke();
 
-    // Inner bright white stroke
     ctx.strokeStyle = coreColor;
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    // Random child branch
     if (Math.random() < 0.45 && segments.length > 4) {
       const branchIdx = Math.floor(segments.length / 2);
       const bx = segments[branchIdx].x;
@@ -394,16 +387,14 @@ class JutsuEffectsEngine {
   // ==========================================
   // 3. SHADOW CLONE RENDERER
   // ==========================================
-  renderShadowClone(w, h) {
+  renderShadowClone(w, h, charge) {
     const ctx = this.ctx;
-
-    // Render 2 clones of live video feed to the left and right
     const cloneWidth = w * 0.65;
     const cloneHeight = h * 0.65;
     const cy = h * 0.25;
 
     ctx.save();
-    ctx.globalAlpha = 0.88;
+    ctx.globalAlpha = 0.88 * charge;
 
     // Left Clone
     ctx.save();
@@ -460,7 +451,6 @@ class JutsuEffectsEngine {
       ctx.rotate(sp.rot);
       ctx.globalAlpha = Math.max(0, sp.life);
 
-      // Fluffy cartoon smoke cloud with manga outline
       ctx.fillStyle = sp.shade;
       ctx.strokeStyle = '#222222';
       ctx.lineWidth = 2;
@@ -481,7 +471,7 @@ class JutsuEffectsEngine {
   // ==========================================
   // 4. FIREBALL (KATON: GŌKAKYŪ) RENDERER
   // ==========================================
-  renderFireball(mouth, hand1, w, h) {
+  renderFireball(mouth, hand1, w, h, charge) {
     const ctx = this.ctx;
     let startX = mouth.x;
     let startY = mouth.y;
@@ -495,12 +485,13 @@ class JutsuEffectsEngine {
 
     const orbX = w * 0.5;
     const orbY = h * 0.58;
-    const orbRadius = Math.min(w, h) * 0.28;
+    const orbRadius = Math.min(w, h) * 0.28 * charge;
 
     ctx.save();
+    ctx.globalAlpha = Math.min(1.0, charge);
 
     // 1. Concentrated fire jet from mouth/hand to giant orb
-    ctx.lineWidth = 26;
+    ctx.lineWidth = 26 * charge;
     ctx.lineCap = 'round';
     ctx.strokeStyle = 'rgba(255, 140, 0, 0.75)';
     ctx.shadowBlur = 25;
@@ -510,7 +501,7 @@ class JutsuEffectsEngine {
     ctx.lineTo(orbX, orbY);
     ctx.stroke();
 
-    ctx.lineWidth = 12;
+    ctx.lineWidth = 12 * charge;
     ctx.strokeStyle = '#fff59d';
     ctx.beginPath();
     ctx.moveTo(startX, startY);
@@ -549,10 +540,10 @@ class JutsuEffectsEngine {
     }
 
     // 4. Flame sparks bursting outward
-    for (let k = 0; k < 6; k++) {
+    for (let k = 0; k < 4; k++) {
       const spAngle = Math.random() * Math.PI * 2;
       const spDist = orbRadius * (0.4 + Math.random() * 0.8);
-      const speed = Math.random() * 7 + 3;
+      const speed = (Math.random() * 7 + 3) * charge;
       this.particles.push({
         x: orbX + Math.cos(spAngle) * spDist,
         y: orbY + Math.sin(spAngle) * spDist,
@@ -571,27 +562,28 @@ class JutsuEffectsEngine {
   // ==========================================
   // 5. REAPER DEATH SEAL (SHIKI FŪJIN) RENDERER
   // ==========================================
-  renderReaperDeathSeal(headCenter, w, h) {
+  renderReaperDeathSeal(headCenter, w, h, charge) {
     const ctx = this.ctx;
     ctx.save();
+    ctx.globalAlpha = Math.min(1.0, charge);
 
     // 1. Ominous purple spirit vignette
     const vigGrad = ctx.createRadialGradient(w * 0.5, h * 0.5, w * 0.25, w * 0.5, h * 0.5, w * 0.75);
     vigGrad.addColorStop(0, 'rgba(0, 0, 0, 0)');
-    vigGrad.addColorStop(0.7, 'rgba(30, 0, 50, 0.55)');
-    vigGrad.addColorStop(1, 'rgba(15, 0, 30, 0.85)');
+    vigGrad.addColorStop(0.7, `rgba(30, 0, 50, ${0.55 * charge})`);
+    vigGrad.addColorStop(1, `rgba(15, 0, 30, ${0.85 * charge})`);
     ctx.fillStyle = vigGrad;
     ctx.fillRect(0, 0, w, h);
 
     // 2. Looming Shinigami Spectre behind user
     const shinX = headCenter.x;
     const shinY = headCenter.y - h * 0.22;
-    const scale = Math.min(w, h) / 700;
+    const scale = (Math.min(w, h) / 700) * charge;
 
     ctx.save();
     ctx.translate(shinX, shinY);
     ctx.scale(scale, scale);
-    ctx.globalAlpha = 0.88;
+    ctx.globalAlpha = 0.88 * charge;
 
     // A. Wild spiky white ghostly hair
     ctx.fillStyle = '#f0edf6';
@@ -662,7 +654,7 @@ class JutsuEffectsEngine {
 
     // 3. Floating Cursed Kanji summoning runes
     const kanjiList = ['封', '死', '鬼', '魂', '呪'];
-    const circleRadius = Math.min(w, h) * 0.32;
+    const circleRadius = Math.min(w, h) * 0.32 * charge;
     const rot = this.time * 0.8;
 
     ctx.font = 'bold 36px "Noto Serif JP", serif';
@@ -680,7 +672,7 @@ class JutsuEffectsEngine {
     }
 
     // 4. Ghostly purple soul wisps
-    if (Math.random() < 0.4) {
+    if (Math.random() < 0.4 * charge) {
       const wAngle = Math.random() * Math.PI * 2;
       const wDist = Math.random() * circleRadius;
       this.particles.push({
@@ -701,11 +693,12 @@ class JutsuEffectsEngine {
   // ==========================================
   // 6. SHARINGAN ➔ KAMUI RENDERER
   // ==========================================
-  renderSharinganKamui(leftEye, rightEye, eyeDist, w, h) {
+  renderSharinganKamui(leftEye, rightEye, eyeDist, w, h, charge) {
     const ctx = this.ctx;
-    const eyeRadius = Math.max(14, eyeDist * 0.22);
+    const eyeRadius = Math.max(14, eyeDist * 0.22) * charge;
 
     ctx.save();
+    ctx.globalAlpha = Math.min(1.0, charge);
 
     // Phase 1: Draw Sharingan on both eyes
     const isMangekyo = this.kamuiTimer > 1.2;
@@ -716,7 +709,7 @@ class JutsuEffectsEngine {
     if (this.kamuiTimer > 1.8) {
       const vortexX = rightEye.x;
       const vortexY = rightEye.y;
-      this.drawKamuiVortex(vortexX, vortexY, w, h);
+      this.drawKamuiVortex(vortexX, vortexY, w, h, charge);
     }
 
     ctx.restore();
@@ -765,7 +758,6 @@ class JutsuEffectsEngine {
         ctx.save();
         ctx.translate(tx, ty);
         ctx.rotate(angle + Math.PI / 2);
-        // Tomoe comma shape
         ctx.beginPath();
         ctx.arc(0, 0, radius * 0.16, 0, Math.PI * 2);
         ctx.fill();
@@ -800,11 +792,11 @@ class JutsuEffectsEngine {
     ctx.restore();
   }
 
-  drawKamuiVortex(cx, cy, w, h) {
+  drawKamuiVortex(cx, cy, w, h, charge) {
     const ctx = this.ctx;
     ctx.save();
 
-    const maxRadius = Math.min(w, h) * 0.45;
+    const maxRadius = Math.min(w, h) * 0.45 * charge;
     const vortexSpeed = this.time * 8.0;
 
     // Spacetime spiral distortion lines
@@ -859,11 +851,12 @@ class JutsuEffectsEngine {
   // ==========================================
   // 7. SHARINGAN ➔ SUSANOO RENDERER
   // ==========================================
-  renderSharinganSusanoo(leftEye, rightEye, headCenter, eyeDist, w, h) {
+  renderSharinganSusanoo(leftEye, rightEye, headCenter, eyeDist, w, h, charge) {
     const ctx = this.ctx;
-    const eyeRadius = Math.max(14, eyeDist * 0.22);
+    const eyeRadius = Math.max(14, eyeDist * 0.22) * charge;
 
     ctx.save();
+    ctx.globalAlpha = Math.min(1.0, charge);
 
     // 1. Blazing Mangekyo Eyes
     this.drawSharinganEye(leftEye.x, leftEye.y, eyeRadius, true);
@@ -872,13 +865,13 @@ class JutsuEffectsEngine {
     // 2. Giant Ethereal Susanoo Chakra Ribcage & Avatar
     const susX = headCenter.x;
     const susY = headCenter.y + h * 0.15;
-    const ribSpan = Math.min(w, h) * 0.42;
+    const ribSpan = Math.min(w, h) * 0.42 * charge;
 
     ctx.shadowBlur = 35;
     ctx.shadowColor = '#9d4edd';
 
-    // A. Chakra Ribs (Left & Right curved massive bone arcs)
-    ctx.lineWidth = 14;
+    // A. Chakra Ribs
+    ctx.lineWidth = 14 * charge;
     ctx.strokeStyle = '#c77dff';
     ctx.lineCap = 'round';
 
@@ -901,7 +894,7 @@ class JutsuEffectsEngine {
     }
 
     // B. Susanoo Spinal Column
-    ctx.lineWidth = 20;
+    ctx.lineWidth = 20 * charge;
     ctx.strokeStyle = '#e0aaff';
     ctx.beginPath();
     ctx.moveTo(susX, susY - ribSpan * 0.35);
@@ -914,8 +907,8 @@ class JutsuEffectsEngine {
     ctx.shadowBlur = 30;
     ctx.shadowColor = '#ffea00';
     ctx.beginPath();
-    ctx.ellipse(susX - ribSpan * 0.4, avY, 28, 12, -0.25, 0, Math.PI * 2);
-    ctx.ellipse(susX + ribSpan * 0.4, avY, 28, 12, 0.25, 0, Math.PI * 2);
+    ctx.ellipse(susX - ribSpan * 0.4, avY, 28 * charge, 12 * charge, -0.25, 0, Math.PI * 2);
+    ctx.ellipse(susX + ribSpan * 0.4, avY, 28 * charge, 12 * charge, 0.25, 0, Math.PI * 2);
     ctx.fill();
 
     // D. Flaming Chakra Horns & Shoulder Armor

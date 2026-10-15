@@ -9,19 +9,18 @@ class JutsuGestureDetector {
     this.FINGER_PIPS = [6, 10, 14, 18];
     this.FINGER_MCPS = [5, 9, 13, 17];
 
-    // Smoothing & confidence state
     this.currentGesture = 'none';
-    this.gestureConfidence = 0;
     this.history = [];
     this.historyLength = 5;
   }
 
   // Distance helper
   dist(p1, p2) {
+    if (!p1 || !p2) return 999;
     return Math.hypot(p1.x - p2.x, p1.y - p2.y);
   }
 
-  // Check which fingers are extended
+  // Check finger extensions accurately
   getFingerStates(lm) {
     const wrist = lm[0];
     const states = {
@@ -33,25 +32,29 @@ class JutsuGestureDetector {
       extendedCount: 0
     };
 
-    // Thumb: compare tip to MCP
+    // Thumb: tip distance vs MCP distance to wrist
     const thumbTip = lm[4];
     const indexMcp = lm[5];
-    const wristDist = this.dist(thumbTip, wrist);
-    const mcpDist = this.dist(indexMcp, wrist);
-    if (this.dist(thumbTip, indexMcp) > 0.12 && wristDist > mcpDist * 0.9) {
+    const thumbMcp = lm[2];
+    const dThumbTip = this.dist(thumbTip, wrist);
+    const dThumbMcp = this.dist(thumbMcp, wrist);
+    if (dThumbTip > dThumbMcp * 1.15 && this.dist(thumbTip, indexMcp) > 0.1) {
       states.thumb = true;
       states.extendedCount++;
     }
 
-    // Four fingers
+    // Four fingers: Tip distance to wrist vs PIP distance to wrist
     const keys = ['index', 'middle', 'ring', 'pinky'];
     for (let i = 0; i < 4; i++) {
       const tip = lm[this.FINGER_TIPS[i]];
       const pip = lm[this.FINGER_PIPS[i]];
       const mcp = lm[this.FINGER_MCPS[i]];
-      const tipDist = this.dist(tip, wrist);
-      const pipDist = this.dist(pip, wrist);
-      const isExt = tipDist > pipDist * 1.08 && tip.y < mcp.y + 0.05;
+      const dTip = this.dist(tip, wrist);
+      const dPip = this.dist(pip, wrist);
+      const dMcp = this.dist(mcp, wrist);
+
+      // Extended if tip is clearly farther than pip and mcp
+      const isExt = dTip > dPip * 1.12 && dTip > dMcp * 1.25;
       states[keys[i]] = isExt;
       if (isExt) states.extendedCount++;
     }
@@ -59,48 +62,60 @@ class JutsuGestureDetector {
     return states;
   }
 
-  // Check if hand is open palm
-  isOpenPalm(states) {
+  // Check if hand is deliberately open palm
+  isOpenPalm(states, lm) {
+    // Must have at least 4 fingers extended (including index, middle, ring)
+    const wrist = lm[0];
+    const midKnk = lm[9];
+    // Hand must be elevated (wrist not off bottom of screen)
+    if (wrist.y > 0.95) return false;
+    // Fingers extended count
     return states.extendedCount >= 4;
   }
 
   // Check if hand is clenched fist or claw
-  isFistOrClaw(states) {
-    return states.extendedCount <= 1;
+  isFistOrClaw(states, lm) {
+    const wrist = lm[0];
+    if (wrist.y > 0.95) return false;
+    // Closed fingers
+    return states.extendedCount === 0 || (states.extendedCount === 1 && states.thumb);
   }
 
   // Check for Tiger Seal (Index & middle straight together, ring/pinky folded)
   isTigerSign(states, lm) {
     if (states.index && states.middle && !states.ring && !states.pinky) {
-      // Check if index and middle tips are close together
       const indexTip = lm[8];
       const middleTip = lm[12];
-      return this.dist(indexTip, middleTip) < 0.08;
+      return this.dist(indexTip, middleTip) < 0.09;
     }
     return false;
   }
 
-  // Check for Prayer / Gasshō seal (Two hands pressed together)
+  // Check for Prayer / Gasshō seal (Two hands pressed together vertically)
   isPrayerHands(lm1, lm2) {
+    // Both hands must be pointing upwards
+    const h1Vertical = lm1[8].y < lm1[0].y;
+    const h2Vertical = lm2[8].y < lm2[0].y;
+    if (!h1Vertical || !h2Vertical) return false;
+
     const wristDist = this.dist(lm1[0], lm2[0]);
     const indexTipDist = this.dist(lm1[8], lm2[8]);
     const midKnkDist = this.dist(lm1[9], lm2[9]);
-    return wristDist < 0.18 && indexTipDist < 0.15 && midKnkDist < 0.16;
+    return wristDist < 0.16 && indexTipDist < 0.14 && midKnkDist < 0.15;
   }
 
   // Check for Cross hand seal (Shadow Clone cross "+" formation)
   isCrossSeal(lm1, lm2) {
     const h1States = this.getFingerStates(lm1);
     const h2States = this.getFingerStates(lm2);
-    // Both hands have index or middle fingers extended
-    const h1TwoFingers = (h1States.index || h1States.middle);
-    const h2TwoFingers = (h2States.index || h2States.middle);
-    if (!h1TwoFingers || !h2TwoFingers) return false;
+    // Both hands must have index or middle fingers extended
+    const h1Ext = h1States.index || h1States.middle;
+    const h2Ext = h2States.index || h2States.middle;
+    if (!h1Ext || !h2Ext) return false;
 
-    // Check if hands overlap in a cross
-    const h1Mid = lm1[9];
-    const h2Mid = lm2[9];
-    const centerDist = this.dist(h1Mid, h2Mid);
+    // Both hands must be close to each other
+    const centerDist = this.dist(lm1[9], lm2[9]);
+    if (centerDist > 0.28) return false;
 
     // One hand predominantly horizontal, one vertical, or finger tips crossing
     const h1DirX = Math.abs(lm1[8].x - lm1[0].x);
@@ -109,7 +124,7 @@ class JutsuGestureDetector {
     const h2DirY = Math.abs(lm2[8].y - lm2[0].y);
 
     const oneHorizOneVert = (h1DirX > h1DirY && h2DirY > h2DirX) || (h1DirY > h1DirX && h2DirX > h2DirY);
-    return centerDist < 0.22 && (oneHorizOneVert || centerDist < 0.12);
+    return oneHorizOneVert || centerDist < 0.14;
   }
 
   // Analyze current frame landmarks
@@ -117,46 +132,36 @@ class JutsuGestureDetector {
     const detected = {
       primaryJutsu: 'none',
       confidence: 0,
-      handSignName: 'STANDBY',
-      handsCount: 0,
-      handDetails: []
+      handSignName: 'STANDBY · PERFORM A HAND SIGN',
+      handsCount: 0
     };
 
     if (!handsData || !handsData.multiHandLandmarks || handsData.multiHandLandmarks.length === 0) {
-      // If no hands but face is visible, check if looking directly for sharingan
       this.pushHistory('none');
       return detected;
     }
 
     const hands = handsData.multiHandLandmarks;
-    const handedness = handsData.multiHandedness || [];
     detected.handsCount = hands.length;
 
     const h1 = hands[0];
-    const h1Label = handedness[0] ? handedness[0].label : 'Left';
     const h1States = this.getFingerStates(h1);
-    detected.handDetails.push({ label: h1Label, states: h1States, lm: h1 });
 
     let h2 = null;
     let h2States = null;
     if (hands.length > 1) {
       h2 = hands[1];
-      const h2Label = handedness[1] ? handedness[1].label : 'Right';
       h2States = this.getFingerStates(h2);
-      detected.handDetails.push({ label: h2Label, states: h2States, lm: h2 });
     }
 
     // Estimate face / mouth / eye position if available
-    let mouthPos = { x: 0.5, y: 0.4 };
+    let mouthPos = { x: 0.5, y: 0.45 };
     let leftEyePos = { x: 0.45, y: 0.35 };
     let rightEyePos = { x: 0.55, y: 0.35 };
-    let hasFace = false;
 
-    if (faceLandmarks && faceLandmarks.length > 0) {
-      hasFace = true;
+    if (faceLandmarks && faceLandmarks[0]) {
       const fl = faceLandmarks[0];
-      // FaceMesh landmarks: mouth 13/14, eyes 33/133, 362/263
-      if (fl[13]) mouthPos = fl[13];
+      if (fl[13]) mouthPos = { x: fl[13].x, y: fl[13].y };
       if (fl[33] && fl[133]) {
         rightEyePos = { x: (fl[33].x + fl[133].x) / 2, y: (fl[33].y + fl[133].y) / 2 };
       }
@@ -185,11 +190,11 @@ class JutsuGestureDetector {
         return detected;
       }
 
-      // C. SUSANOO (Both hands raised wide or crossed over chest)
+      // C. SUSANOO (Both hands raised wide with open palms)
       const h1Wrist = h1[0];
       const h2Wrist = h2[0];
-      const wideSpread = Math.abs(h1Wrist.x - h2Wrist.x) > 0.45;
-      const bothHigh = h1Wrist.y < 0.65 && h2Wrist.y < 0.65;
+      const wideSpread = Math.abs(h1Wrist.x - h2Wrist.x) > 0.40;
+      const bothHigh = h1Wrist.y < 0.60 && h2Wrist.y < 0.60;
       if (wideSpread && bothHigh && (h1States.extendedCount >= 3 && h2States.extendedCount >= 3)) {
         detected.primaryJutsu = 'susanoo';
         detected.confidence = 0.90;
@@ -204,9 +209,9 @@ class JutsuGestureDetector {
     const activeStates = h1States;
     const handCenter = activeHand[9];
 
-    // Fireball: Tiger seal or hand cupped near mouth
+    // Fireball: Tiger seal or hand in front of mouth
     const distToMouth = this.dist(handCenter, mouthPos);
-    const isNearMouth = distToMouth < 0.22;
+    const isNearMouth = distToMouth < 0.22 && activeHand[0].y < mouthPos.y + 0.25;
     const isTiger = this.isTigerSign(activeStates, activeHand);
 
     if (isNearMouth && (isTiger || activeStates.extendedCount >= 2)) {
@@ -217,9 +222,9 @@ class JutsuGestureDetector {
       return detected;
     }
 
-    // Sharingan -> Kamui: Hand / finger raised close to eye or temple
+    // Sharingan -> Kamui: Index finger raised close to eye or temple
     const distToEye = Math.min(this.dist(activeHand[8], leftEyePos), this.dist(activeHand[8], rightEyePos));
-    if (distToEye < 0.16 && (activeStates.index && !activeStates.pinky)) {
+    if (distToEye < 0.16 && activeStates.index && !activeStates.pinky) {
       detected.primaryJutsu = 'kamui';
       detected.confidence = 0.89;
       detected.handSignName = '👁️ FOCUS CHAKRA (SHARINGAN ➔ KAMUI)';
@@ -228,13 +233,13 @@ class JutsuGestureDetector {
     }
 
     // 3. SINGLE HAND JUTSUS: Rasengan vs Chidori
-    if (this.isOpenPalm(activeStates)) {
+    if (this.isOpenPalm(activeStates, activeHand)) {
       detected.primaryJutsu = 'rasengan';
       detected.confidence = 0.92;
       detected.handSignName = '🖐️ OPEN PALM (RASENGAN)';
       this.pushHistory('rasengan');
       return detected;
-    } else if (this.isFistOrClaw(activeStates)) {
+    } else if (this.isFistOrClaw(activeStates, activeHand)) {
       detected.primaryJutsu = 'chidori';
       detected.confidence = 0.88;
       detected.handSignName = '✊ CLENCHED CLAW (CHIDORI)';
@@ -242,8 +247,9 @@ class JutsuGestureDetector {
       return detected;
     }
 
+    // No recognized gesture
     this.pushHistory('none');
-    detected.handSignName = 'READY';
+    detected.handSignName = 'STANDBY · PERFORM A HAND SIGN';
     return detected;
   }
 
@@ -268,7 +274,8 @@ class JutsuGestureDetector {
         maxG = g;
       }
     }
-    return maxCount >= 3 ? maxG : this.currentGesture;
+    this.currentGesture = (maxCount >= 3) ? maxG : 'none';
+    return this.currentGesture;
   }
 }
 

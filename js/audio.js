@@ -395,6 +395,12 @@ class JutsuAudio {
     sub.start(now);
     sub.stop(now + 2.3);
   }
+
+  stopAll() {
+    this.stopRasengan();
+    this.stopChidori();
+    this.stopFireball();
+  }
 }
 
 window.jutsuAudio = new JutsuAudio();
