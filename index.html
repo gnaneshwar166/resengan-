@@ -3,188 +3,187 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Rasengan</title>
+  <title>Naruto Jutsu-Cam — Unleash 7 Legendary Shinobi Techniques</title>
 
+  <!-- MediaPipe AI Models from jsDelivr -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
 
-  <style>
-    html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font-family: system-ui, sans-serif; }
-
-    .layer {
-      position: fixed; inset: 0;
-      width: 100vw; height: 100vh;
-      object-fit: cover;
-      transform: scaleX(-1);
-    }
-    #cam      { z-index: 0; }
-    #skeleton { z-index: 2; pointer-events: none; }
-
-    .vignette {
-      position: fixed; inset: 0;
-      background: radial-gradient(ellipse at center, transparent 35%, rgba(0,0,0,0.55) 100%);
-      pointer-events: none; z-index: 4;
-    }
-
-    .rasengan {
-      position: fixed; top: 0; left: 0;
-      width: 1500px; height: auto;
-      transform: translate(-50%, -50%);
-      pointer-events: none;
-      mix-blend-mode: screen;
-      opacity: 0;
-      will-change: opacity, left, top;
-      z-index: 10;
-    }
-
-    #hint {
-      position: fixed; bottom: 16px; left: 50%;
-      transform: translateX(-50%);
-      color: #cfe9ff; font-size: 14px; letter-spacing: 0.04em;
-      background: rgba(0,0,0,0.45);
-      padding: 6px 12px; border-radius: 999px;
-      z-index: 6; pointer-events: none;
-    }
-  </style>
+  <!-- App Stylesheet -->
+  <link rel="stylesheet" href="css/jutsu.css">
 </head>
 <body>
-  <video  id="cam"      class="layer" autoplay playsinline muted></video>
-  <canvas id="skeleton" class="layer"></canvas>
+  <!-- Video Feed & Visual Effects Canvases -->
+  <video  id="cam"           class="layer" autoplay playsinline muted></video>
+  <canvas id="skeleton"      class="layer"></canvas>
+  <canvas id="effectsCanvas" class="layer"></canvas>
   <div    class="vignette"></div>
 
+  <!-- Rasengan video overlays (fallback/enhancement) -->
   <video class="rasengan" data-slot="0" src="assets/rasengan.mp4" muted autoplay loop playsinline preload="auto"></video>
   <video class="rasengan" data-slot="1" src="assets/rasengan.mp4" muted autoplay loop playsinline preload="auto"></video>
 
-  <script>
-    const camVideo = document.getElementById('cam');
-    const canvas   = document.getElementById('skeleton');
-    const pen      = canvas.getContext('2d');
-    const orbs     = Array.from(document.querySelectorAll('.rasengan'));
+  <!-- Flash Message Notification -->
+  <div id="flash-msg" class="flash-msg">📸 Photo Saved!</div>
 
-    // Two distinct palettes so each hand's skeleton is obviously different,
-    // and bones vs joints inside one hand are also different colors.
-    const PALETTES = {
-      Left:  { bone: '#ff8a3d', joint: '#fff36a', glow: '#ff5e1a' }, // warm — Naruto orange
-      Right: { bone: '#62f0ff', joint: '#ff66e0', glow: '#1aa6ff' }  // cool — chakra blue
-    };
+  <!-- Main UI HUD Overlay -->
+  <div id="ui-overlay">
+    <!-- Top Navigation & Jutsu Selection Dock -->
+    <header class="top-bar">
+      <div class="brand-badge">
+        <span class="brand-icon">🌀</span>
+        <span class="brand-title">JUTSU-CAM</span>
+      </div>
 
-    // Per-hand fade-in / fade-out state for the orbs.
-    const orbState = [
-      { charge: 0, wasOpen: false },
-      { charge: 0, wasOpen: false }
-    ];
+      <nav class="jutsu-dock" aria-label="Jutsu Selector">
+        <button class="jutsu-btn active" data-jutsu="rasengan" title="Open Palm">
+          <span>🌀 Rasengan</span>
+          <span class="jutsu-key">1</span>
+        </button>
+        <button class="jutsu-btn" data-jutsu="chidori" title="Clenched Fist / Claw">
+          <span>⚡ Chidori</span>
+          <span class="jutsu-key">2</span>
+        </button>
+        <button class="jutsu-btn" data-jutsu="clone" title="Cross Fingers (+)">
+          <span>👥 Shadow Clone</span>
+          <span class="jutsu-key">3</span>
+        </button>
+        <button class="jutsu-btn" data-jutsu="fireball" title="Tiger Seal at Mouth">
+          <span>🔥 Fireball</span>
+          <span class="jutsu-key">4</span>
+        </button>
+        <button class="jutsu-btn" data-jutsu="reaper" title="Prayer Hands at Chest">
+          <span>💀 Reaper Seal</span>
+          <span class="jutsu-key">5</span>
+        </button>
+        <button class="jutsu-btn" data-jutsu="kamui" title="Hand near Eye">
+          <span>👁️ Kamui</span>
+          <span class="jutsu-key">6</span>
+        </button>
+        <button class="jutsu-btn" data-jutsu="susanoo" title="Both Arms Raised Wide">
+          <span>🛡️ Susanoo</span>
+          <span class="jutsu-key">7</span>
+        </button>
+      </nav>
 
-    const FINGER_TIPS     = [8, 12, 16, 20];
-    const FINGER_KNUCKLES = [6, 10, 14, 18];
+      <!-- Mode Toggle -->
+      <div class="mode-toggle" id="mode-toggle" title="Toggle Gesture Detection vs Manual Lock">
+        <div class="mode-option active" id="mode-auto">⚡ Auto-Gesture</div>
+        <div class="mode-option" id="mode-manual">🎯 Lock Mode</div>
+      </div>
+    </header>
 
-    function isPalmOpen(lm) {
-      const wrist = lm[0];
-      let extended = 0;
-      for (let i = 0; i < FINGER_TIPS.length; i++) {
-        const tip = lm[FINGER_TIPS[i]];
-        const knk = lm[FINGER_KNUCKLES[i]];
-        const dTip = Math.hypot(tip.x - wrist.x, tip.y - wrist.y);
-        const dKnk = Math.hypot(knk.x - wrist.x, knk.y - wrist.y);
-        if (dTip > dKnk) extended++;
-      }
-      return extended >= 3;
-    }
+    <!-- Side Action Buttons -->
+    <aside class="side-actions">
+      <button class="action-btn" id="snapshot-btn" title="Take Jutsu Photo [Space]">📸</button>
+      <button class="action-btn" id="sfx-btn" title="Toggle SFX Sound [M]">🔊</button>
+      <button class="action-btn" id="guide-btn" title="Hand Signs Cheat Sheet [G]">📜</button>
+      <button class="action-btn" id="skeleton-btn" title="Toggle Tracking Skeleton">🦴</button>
+    </aside>
 
-    // Draw bones in one color, joints in another, with a colored glow,
-    // so the tracking sticks visibly follow each finger.
-    function paintSkeleton(lm, colors) {
-      pen.save();
-      pen.shadowBlur  = 18;
-      pen.shadowColor = colors.glow;
-      drawConnectors(pen, lm, HAND_CONNECTIONS, { color: colors.bone, lineWidth: 3 });
-      pen.restore();
+    <!-- Bottom Status & Chakra HUD -->
+    <footer class="bottom-bar">
+      <div class="status-card">
+        <div class="jutsu-name-row">
+          <span id="kanji-title" class="kanji-title">螺旋丸</span>
+          <span id="english-title" class="english-title">RASENGAN · SPIRALING SPHERE</span>
+        </div>
+        <div id="hand-sign-hint" class="hand-sign-hint">🖐️ Trigger: Open Palm facing camera</div>
+        <div class="chakra-meter-container">
+          <div id="chakra-fill" class="chakra-meter-fill"></div>
+        </div>
+      </div>
+    </footer>
+  </div>
 
-      pen.save();
-      pen.shadowBlur  = 10;
-      pen.shadowColor = colors.glow;
-      pen.fillStyle   = colors.joint;
-      for (const p of lm) {
-        pen.beginPath();
-        pen.arc(p.x * canvas.width, p.y * canvas.height, 3.5, 0, Math.PI * 2);
-        pen.fill();
-      }
-      pen.restore();
-    }
+  <!-- Hand Signs Cheat Sheet Modal / Drawer -->
+  <div id="guide-modal" class="guide-modal" role="dialog" aria-modal="true" aria-labelledby="guide-title">
+    <div class="guide-content">
+      <div class="guide-header">
+        <h3 id="guide-title" class="guide-title">📜 Shinobi Hand Sign Manual</h3>
+        <button id="close-guide" class="close-btn" aria-label="Close Guide">&times;</button>
+      </div>
 
-    function placeOrb(slot, lm, charge) {
-      const wrist  = lm[0];
-      const midKnk = lm[9];
+      <div class="jutsu-guide-list">
+        <!-- 1. Rasengan -->
+        <div class="guide-item">
+          <div class="guide-badge">🌀</div>
+          <div class="guide-info">
+            <h4>Rasengan (螺旋丸)</h4>
+            <p>Hold an <strong>open palm facing the camera</strong> with fingers fully spread. A high-density spiraling chakra vortex will manifest and spin above your palm.</p>
+            <span class="guide-tag">Gesture: Open Palm (Key: 1)</span>
+          </div>
+        </div>
 
-      const cx = (wrist.x + midKnk.x) / 2;
-      const cy = (wrist.y + midKnk.y) / 2;
-      const handSize = Math.hypot(midKnk.x - wrist.x, midKnk.y - wrist.y);
-      const lift = handSize * 1.8;
+        <!-- 2. Chidori -->
+        <div class="guide-item">
+          <div class="guide-badge">⚡</div>
+          <div class="guide-info">
+            <h4>Chidori (千鳥 · One Thousand Birds)</h4>
+            <p>Clench your hand into a <strong>tight fist or downward claw grip</strong>. Blinding high-voltage blue lightning will crackle, branch, and spark violently from your knuckles.</p>
+            <span class="guide-tag">Gesture: Clenched Fist / Claw (Key: 2)</span>
+          </div>
+        </div>
 
-      const orb = orbs[slot];
-      orb.style.left    = `${(1 - cx) * window.innerWidth}px`;
-      orb.style.top     = `${(cy - lift) * window.innerHeight}px`;
-      orb.style.opacity = charge.toFixed(3);
-    }
+        <!-- 3. Shadow Clone -->
+        <div class="guide-item">
+          <div class="guide-badge">👥</div>
+          <div class="guide-info">
+            <h4>Shadow Clone Jutsu (影分身の術)</h4>
+            <p>Form the iconic <strong>cross hand seal (+)</strong> by crossing index and middle fingers, or bring both hands together. Triggers the classic anime smoke explosion (POOF!) and spawns live video clones on your sides.</p>
+            <span class="guide-tag">Gesture: Cross Fingers '+' (Key: 3)</span>
+          </div>
+        </div>
 
-    function onResults(res) {
-      canvas.width  = camVideo.videoWidth  || canvas.clientWidth;
-      canvas.height = camVideo.videoHeight || canvas.clientHeight;
-      pen.clearRect(0, 0, canvas.width, canvas.height);
+        <!-- 4. Fireball -->
+        <div class="guide-item">
+          <div class="guide-badge">🔥</div>
+          <div class="guide-info">
+            <h4>Fireball Jutsu (火遁・豪火球の術)</h4>
+            <p>Form the <strong>Tiger hand seal (index & middle fingers upright)</strong> or bring your hand cupped directly in front of your mouth/chin. Unleashes a massive roaring flame tempest and swirling fire embers.</p>
+            <span class="guide-tag">Gesture: Tiger Seal at Mouth (Key: 4)</span>
+          </div>
+        </div>
 
-      const seen = [false, false];
+        <!-- 5. Reaper Death Seal -->
+        <div class="guide-item">
+          <div class="guide-badge">💀</div>
+          <div class="guide-info">
+            <h4>Reaper Death Seal (封印術・屍鬼封尽)</h4>
+            <p>Clasp both hands together flat in a <strong>Prayer seal (Gasshō)</strong> at your chest. Summons the spectral Shinigami (Death Spectre) looming behind you with purple ghostly soul flames, cursed kanji runes (封, 死, 鬼), and temple bells.</p>
+            <span class="guide-tag">Gesture: Prayer Hands (Key: 5)</span>
+          </div>
+        </div>
 
-      if (res.multiHandLandmarks && res.multiHandedness) {
-        res.multiHandLandmarks.forEach((lm, i) => {
-          const label  = res.multiHandedness[i].label; // "Left" | "Right"
-          const slot   = label === 'Right' ? 1 : 0;
-          const colors = PALETTES[label] || PALETTES.Left;
-          seen[slot]   = true;
+        <!-- 6. Sharingan -> Kamui -->
+        <div class="guide-item">
+          <div class="guide-badge">👁️</div>
+          <div class="guide-info">
+            <h4>Sharingan ➔ Kamui (写輪眼 ➔ 神威)</h4>
+            <p>Raise your index finger close to your <strong>eye / temple</strong> or select from the dock. Your eyes awaken the crimson Sharingan with rotating Tomoes, evolve into Kakashi's Mangekyō, and tear open the Kamui spacetime vortex!</p>
+            <span class="guide-tag">Gesture: Finger near Eye (Key: 6)</span>
+          </div>
+        </div>
 
-          paintSkeleton(lm, colors);
+        <!-- 7. Sharingan -> Susanoo -->
+        <div class="guide-item">
+          <div class="guide-badge">🛡️</div>
+          <div class="guide-info">
+            <h4>Sharingan ➔ Susanoo (写輪眼 ➔ 須佐能乎)</h4>
+            <p>Raise <strong>both arms high and wide</strong> or cross your arms over your chest to unleash full chakra. The colossal ethereal purple chakra ribcage, skeletal armor, flaming horns, and avatar eyes materialize!</p>
+            <span class="guide-tag">Gesture: Arms Raised Wide (Key: 7)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
-          const open = isPalmOpen(lm);
-          const st   = orbState[slot];
-          st.charge  = Math.max(0, Math.min(1, st.charge + (open ? 0.06 : -0.18)));
-
-          if (open && !st.wasOpen) {
-            const v = orbs[slot];
-            v.currentTime = 0;
-            v.play().catch(err => console.warn('rasengan play failed', err));
-          }
-          st.wasOpen = open;
-
-          if (st.charge > 0.01) placeOrb(slot, lm, st.charge);
-          else orbs[slot].style.opacity = 0;
-        });
-      }
-
-      // Decay any hand we didn't see this frame.
-      for (let i = 0; i < 2; i++) {
-        if (seen[i]) continue;
-        orbState[i].charge  = Math.max(0, orbState[i].charge - 0.18);
-        orbState[i].wasOpen = false;
-        orbs[i].style.opacity = orbState[i].charge.toFixed(3);
-      }
-    }
-
-    const hands = new Hands({
-      locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`
-    });
-    hands.setOptions({
-      maxNumHands: 2,
-      modelComplexity: 1,
-      minDetectionConfidence: 0.65,
-      minTrackingConfidence:  0.65
-    });
-    hands.onResults(onResults);
-
-    const camera = new Camera(camVideo, {
-      onFrame: async () => { await hands.send({ image: camVideo }); },
-      width:  1280,
-      height: 720
-    });
-    camera.start();
-  </script>
+  <!-- Application Modules -->
+  <script src="js/audio.js"></script>
+  <script src="js/gestures.js"></script>
+  <script src="js/effects.js"></script>
+  <script src="js/app.js"></script>
 </body>
 </html>
