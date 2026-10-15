@@ -30,50 +30,50 @@ document.addEventListener('DOMContentLoaded', () => {
   const JUTSU_DATA = {
     none: {
       kanji: '待機中',
-      english: 'STANDBY · PERFORM A JUTSU SIGN',
-      hint: '🖐️ Palm: Rasengan | ✊ Claw: Chidori | ➕ Cross: Clone | 🐯 Mouth: Fireball',
+      english: 'STANDBY · SHOW A SIGN',
+      hint: '🖐️ Palm: Rasengan | ✊ Fist: Chidori | ➕ Cross: Clone | 🔥 Mouth: Fireball | 🙏 Prayer: Reaper | 👁️ Eye: Kamui | 🛡️ Hands Up: Susanoo',
       color: '#4a5568'
     },
     rasengan: {
       kanji: '螺旋丸',
       english: 'RASENGAN · SPIRALING SPHERE',
-      hint: '🖐️ Open Palm facing camera',
+      hint: '🖐️ Open Palm facing camera (Summons directly on your palm)',
       color: '#00f0ff'
     },
     chidori: {
       kanji: '千鳥',
       english: 'CHIDORI · THOUSAND BIRDS',
-      hint: '✊ Clenched Fist / Claw downwards',
+      hint: '✊ Clenched Fist (Lightning bursts directly from your knuckles)',
       color: '#70d6ff'
     },
     clone: {
       kanji: '影分身の術',
       english: 'SHADOW CLONE JUTSU',
-      hint: '➕ Cross Fingers Seal (+) or 2 hands together',
+      hint: '➕ Two hands forming Cross Seal (+)',
       color: '#ff9f1a'
     },
     fireball: {
       kanji: '火遁・豪火球の術',
       english: 'FIREBALL JUTSU (KATON)',
-      hint: '🐯 Tiger Hand Seal in front of mouth',
+      hint: '🔥 Hand held directly in front of mouth',
       color: '#ff5500'
     },
     reaper: {
       kanji: '封印術・屍鬼封尽',
       english: 'REAPER DEATH SEAL (SHIKI FŪJIN)',
-      hint: '🙏 Prayer Hands (Gasshō) at chest',
+      hint: '🙏 Both hands pressed in Prayer (Gasshō)',
       color: '#9d4edd'
     },
     kamui: {
       kanji: '写輪眼 ➔ 神威',
       english: 'SHARINGAN ➔ KAMUI VORTEX',
-      hint: '👁️ Index Finger near eye / temple',
+      hint: '👁️ Index finger pointing at eye / temple',
       color: '#ff0055'
     },
     susanoo: {
       kanji: '写輪眼 ➔ 須佐能乎',
       english: 'SHARINGAN ➔ SUSANOO AVATAR',
-      hint: '🛡️ Both Arms Raised Wide or Crossed',
+      hint: '🛡️ Both hands raised high in the air',
       color: '#c77dff'
     }
   };

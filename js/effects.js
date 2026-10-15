@@ -1,7 +1,7 @@
 /**
  * Naruto Jutsu-Cam Visual Effects Engine
  * High-performance Canvas 2D / procedural particle and energy renderer
- * Supports: Rasengan, Chidori, Shadow Clone, Fireball, Reaper Death Seal, Kamui, Susanoo
+ * 100% accurate spatial mapping directly on hands, eyes, and mouth!
  */
 
 class JutsuEffectsEngine {
@@ -44,7 +44,7 @@ class JutsuEffectsEngine {
       else if (jutsuName === 'reaper') window.jutsuAudio.playReaperDeathSeal();
       else if (jutsuName === 'kamui') {
         window.jutsuAudio.playSharingan();
-        setTimeout(() => window.jutsuAudio && window.jutsuAudio.playKamui(), 700);
+        setTimeout(() => window.jutsuAudio && window.jutsuAudio.playKamui(), 600);
       }
       else if (jutsuName === 'susanoo') {
         window.jutsuAudio.playSharingan();
@@ -57,7 +57,6 @@ class JutsuEffectsEngine {
     }
   }
 
-  // Update loop called every frame
   update(dt = 0.016) {
     this.time += dt;
     if (this.activeJutsu !== 'none') {
@@ -92,12 +91,10 @@ class JutsuEffectsEngine {
     }
   }
 
-  // Clear canvas
   clear() {
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
   }
 
-  // Render all active effects
   render(handsData, faceLandmarks, charge = 1.0) {
     const w = this.canvas.width;
     const h = this.canvas.height;
@@ -110,12 +107,12 @@ class JutsuEffectsEngine {
       return;
     }
 
-    // Hide rasengan videos unless rasengan is the active jutsu
     if (this.activeJutsu !== 'rasengan') {
       this.orbs.forEach(orb => orb.style.opacity = '0');
     }
 
-    // Extract key positions
+    // Extract landmarks (NOTE: Canvas is CSS mirrored with transform: scaleX(-1),
+    // so x MUST NOT be inverted with (1 - x)! Use landmark.x * w directly!)
     let hand1 = null, hand2 = null;
     if (handsData && handsData.multiHandLandmarks) {
       if (handsData.multiHandLandmarks[0]) hand1 = handsData.multiHandLandmarks[0];
@@ -131,21 +128,21 @@ class JutsuEffectsEngine {
     if (faceLandmarks && faceLandmarks[0]) {
       const fl = faceLandmarks[0];
       if (fl[133] && fl[33]) {
-        rightEye = { x: (1 - (fl[33].x + fl[133].x) / 2) * w, y: ((fl[33].y + fl[133].y) / 2) * h };
+        rightEye = { x: ((fl[33].x + fl[133].x) / 2) * w, y: ((fl[33].y + fl[133].y) / 2) * h };
       }
       if (fl[362] && fl[263]) {
-        leftEye = { x: (1 - (fl[362].x + fl[263].x) / 2) * w, y: ((fl[362].y + fl[263].y) / 2) * h };
+        leftEye = { x: ((fl[362].x + fl[263].x) / 2) * w, y: ((fl[362].y + fl[263].y) / 2) * h };
       }
       if (fl[13]) {
-        mouth = { x: (1 - fl[13].x) * w, y: fl[13].y * h };
+        mouth = { x: fl[13].x * w, y: fl[13].y * h };
       }
       if (fl[10]) {
-        headCenter = { x: (1 - fl[10].x) * w, y: (fl[10].y + 0.05) * h };
+        headCenter = { x: fl[10].x * w, y: (fl[10].y + 0.05) * h };
       }
       eyeDist = Math.hypot(rightEye.x - leftEye.x, rightEye.y - leftEye.y) || (w * 0.14);
     }
 
-    // Dispatch effect renderers
+    // Render active Jutsu
     switch (this.activeJutsu) {
       case 'rasengan':
         this.renderRasengan(hand1, hand2, w, h, charge);
@@ -170,17 +167,15 @@ class JutsuEffectsEngine {
         break;
     }
 
-    // Render general particles & smoke
     this.renderSmokePuffs();
     this.renderParticles();
   }
 
   // ==========================================
-  // 1. RASENGAN RENDERER
+  // 1. RASENGAN RENDERER (LOCKED DIRECTLY TO PALM)
   // ==========================================
   renderRasengan(hand1, hand2, w, h, charge) {
     const hands = [hand1, hand2].filter(Boolean);
-    // ONLY DRAW IF HAND IS PRESENT!
     if (hands.length === 0) {
       this.orbs.forEach(orb => orb.style.opacity = '0');
       return;
@@ -189,19 +184,32 @@ class JutsuEffectsEngine {
     hands.forEach((hand, idx) => {
       const wrist = hand[0];
       const midKnk = hand[9];
-      const cx = (1 - (wrist.x + midKnk.x) / 2) * w;
-      const handSpan = Math.hypot((hand[9].x - hand[0].x) * w, (hand[9].y - hand[0].y) * h);
-      const cy = ((wrist.y + midKnk.y) / 2) * h - handSpan * 0.85;
-      const radius = Math.max(50, Math.min(135, handSpan * 0.75)) * charge;
 
-      // Draw procedural energy sphere
-      this.drawProceduralRasengan(cx, cy, radius, charge);
+      // Palm Center
+      const palmX = (wrist.x * 0.4 + midKnk.x * 0.6) * w;
+      const palmY = (wrist.y * 0.4 + midKnk.y * 0.6) * h;
 
-      // Support original video element overlay if present
+      // Direction vector pointing from wrist through fingers
+      const dx = (midKnk.x - wrist.x) * w;
+      const dy = (midKnk.y - wrist.y) * h;
+      const handSpan = Math.hypot(dx, dy) || 100;
+      const dirX = dx / handSpan;
+      const dirY = dy / handSpan;
+
+      // Rasengan floats directly above the open palm
+      const orbX = palmX + dirX * handSpan * 0.55;
+      const orbY = palmY + dirY * handSpan * 0.55;
+      const radius = Math.max(50, Math.min(135, handSpan * 0.70)) * charge;
+
+      // Draw procedural energy sphere locked to palm
+      this.drawProceduralRasengan(orbX, orbY, radius, charge);
+
+      // Support original video element if present
       if (this.orbs[idx]) {
         const orb = this.orbs[idx];
-        orb.style.left = `${cx}px`;
-        orb.style.top = `${cy}px`;
+        // DOM element needs mirrored screen coordinate: (1 - x / w) * window.innerWidth
+        orb.style.left = `${(1 - orbX / w) * window.innerWidth}px`;
+        orb.style.top = `${orbY}px`;
         orb.style.width = `${radius * 7.5}px`;
         orb.style.opacity = (charge * 0.85).toFixed(2);
       }
@@ -277,67 +285,74 @@ class JutsuEffectsEngine {
   }
 
   // ==========================================
-  // 2. CHIDORI RENDERER
+  // 2. CHIDORI RENDERER (LOCKED DIRECTLY TO FIST)
   // ==========================================
   renderChidori(hand1, hand2, w, h, charge) {
     const hands = [hand1, hand2].filter(Boolean);
-    // ONLY DRAW IF HAND IS PRESENT!
     if (hands.length === 0) return;
 
-    const hand = hands[0];
-    const wrist = hand[0];
-    const knk = hand[9];
-    const targetX = (1 - (wrist.x + knk.x) / 2) * w;
-    const targetY = ((wrist.y + knk.y) / 2) * h;
-    const handSpan = Math.hypot((knk.x - wrist.x) * w, (knk.y - wrist.y) * h) * 1.2;
+    hands.forEach(hand => {
+      // Knuckles Center
+      const knkX = ((hand[5].x + hand[9].x + hand[13].x + hand[17].x) / 4) * w;
+      const knkY = ((hand[5].y + hand[9].y + hand[13].y + hand[17].y) / 4) * h;
 
-    const ctx = this.ctx;
-    ctx.save();
-    ctx.globalAlpha = Math.min(1.0, charge);
+      // Wrist
+      const wristX = hand[0].x * w;
+      const wristY = hand[0].y * h;
 
-    // 1. Blinding lightning core
-    const coreRadius = Math.max(35, handSpan * 0.55) * charge;
-    const grad = ctx.createRadialGradient(targetX, targetY, 0, targetX, targetY, coreRadius * 1.8);
-    grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
-    grad.addColorStop(0.3, 'rgba(120, 235, 255, 0.9)');
-    grad.addColorStop(0.7, 'rgba(0, 140, 255, 0.4)');
-    grad.addColorStop(1, 'rgba(0, 80, 255, 0)');
+      const handSpan = Math.hypot(knkX - wristX, knkY - wristY) * 1.3;
+      const coreRadius = Math.max(35, handSpan * 0.6) * charge;
 
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(targetX, targetY, coreRadius * 1.8, 0, Math.PI * 2);
-    ctx.fill();
+      const ctx = this.ctx;
+      ctx.save();
+      ctx.globalAlpha = Math.min(1.0, charge);
 
-    // 2. Recursive branching lightning bolts
-    const boltCount = Math.floor(10 * charge);
-    ctx.shadowBlur = 22;
-    ctx.shadowColor = '#00f0ff';
+      // 1. Blinding lightning core right on the fist
+      const grad = ctx.createRadialGradient(knkX, knkY, 0, knkX, knkY, coreRadius * 1.8);
+      grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+      grad.addColorStop(0.3, 'rgba(120, 235, 255, 0.9)');
+      grad.addColorStop(0.7, 'rgba(0, 140, 255, 0.4)');
+      grad.addColorStop(1, 'rgba(0, 80, 255, 0)');
 
-    for (let i = 0; i < boltCount; i++) {
-      const angle = (i / boltCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.6;
-      const length = coreRadius * (1.2 + Math.random() * 1.6);
-      const endX = targetX + Math.cos(angle) * length;
-      const endY = targetY + Math.sin(angle) * length;
-      this.drawLightningBolt(targetX, targetY, endX, endY, 4, '#ffffff', '#00f0ff');
-    }
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(knkX, knkY, coreRadius * 1.8, 0, Math.PI * 2);
+      ctx.fill();
 
-    // 3. Electric sparks flying off
-    for (let s = 0; s < 3; s++) {
-      const spAngle = Math.random() * Math.PI * 2;
-      const spSpeed = (Math.random() * 8 + 4) * charge;
-      this.particles.push({
-        x: targetX,
-        y: targetY,
-        vx: Math.cos(spAngle) * spSpeed,
-        vy: Math.sin(spAngle) * spSpeed,
-        size: Math.random() * 3.5 + 1.5,
-        color: Math.random() > 0.4 ? '#ffffff' : '#4deeea',
-        decay: 0.05,
-        life: 1.0
-      });
-    }
+      // 2. Electric arcs wrapping down to the wrist/forearm
+      this.drawLightningBolt(knkX, knkY, wristX, wristY, 3, '#ffffff', '#00f0ff');
 
-    ctx.restore();
+      // 3. Recursive branching lightning bolts exploding from fist
+      const boltCount = Math.floor(10 * charge);
+      ctx.shadowBlur = 22;
+      ctx.shadowColor = '#00f0ff';
+
+      for (let i = 0; i < boltCount; i++) {
+        const angle = (i / boltCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.6;
+        const length = coreRadius * (1.2 + Math.random() * 1.6);
+        const endX = knkX + Math.cos(angle) * length;
+        const endY = knkY + Math.sin(angle) * length;
+        this.drawLightningBolt(knkX, knkY, endX, endY, 4, '#ffffff', '#00f0ff');
+      }
+
+      // 4. Electric sparks flying off the knuckles
+      for (let s = 0; s < 3; s++) {
+        const spAngle = Math.random() * Math.PI * 2;
+        const spSpeed = (Math.random() * 8 + 4) * charge;
+        this.particles.push({
+          x: knkX,
+          y: knkY,
+          vx: Math.cos(spAngle) * spSpeed,
+          vy: Math.sin(spAngle) * spSpeed,
+          size: Math.random() * 3.5 + 1.5,
+          color: Math.random() > 0.4 ? '#ffffff' : '#4deeea',
+          decay: 0.05,
+          life: 1.0
+        });
+      }
+
+      ctx.restore();
+    });
   }
 
   drawLightningBolt(x1, y1, x2, y2, displace, coreColor = '#ffffff', glowColor = '#00e5ff') {
@@ -477,14 +492,12 @@ class JutsuEffectsEngine {
     let startY = mouth.y;
 
     if (hand1) {
-      const wrist = hand1[0];
-      const knk = hand1[9];
-      startX = (1 - (wrist.x + knk.x) / 2) * w;
-      startY = ((wrist.y + knk.y) / 2) * h;
+      startX = hand1[9].x * w;
+      startY = hand1[9].y * h;
     }
 
-    const orbX = w * 0.5;
-    const orbY = h * 0.58;
+    const orbX = startX;
+    const orbY = startY - h * 0.18;
     const orbRadius = Math.min(w, h) * 0.28 * charge;
 
     ctx.save();
@@ -568,14 +581,14 @@ class JutsuEffectsEngine {
     ctx.globalAlpha = Math.min(1.0, charge);
 
     // 1. Ominous purple spirit vignette
-    const vigGrad = ctx.createRadialGradient(w * 0.5, h * 0.5, w * 0.25, w * 0.5, h * 0.5, w * 0.75);
+    const vigGrad = ctx.createRadialGradient(headCenter.x, headCenter.y, w * 0.20, headCenter.x, headCenter.y, w * 0.75);
     vigGrad.addColorStop(0, 'rgba(0, 0, 0, 0)');
     vigGrad.addColorStop(0.7, `rgba(30, 0, 50, ${0.55 * charge})`);
     vigGrad.addColorStop(1, `rgba(15, 0, 30, ${0.85 * charge})`);
     ctx.fillStyle = vigGrad;
     ctx.fillRect(0, 0, w, h);
 
-    // 2. Looming Shinigami Spectre behind user
+    // 2. Looming Shinigami Spectre behind user head
     const shinX = headCenter.x;
     const shinY = headCenter.y - h * 0.22;
     const scale = (Math.min(w, h) / 700) * charge;
@@ -585,7 +598,7 @@ class JutsuEffectsEngine {
     ctx.scale(scale, scale);
     ctx.globalAlpha = 0.88 * charge;
 
-    // A. Wild spiky white ghostly hair
+    // Ghostly hair
     ctx.fillStyle = '#f0edf6';
     ctx.shadowBlur = 25;
     ctx.shadowColor = '#b5179e';
@@ -602,13 +615,13 @@ class JutsuEffectsEngine {
     ctx.closePath();
     ctx.fill();
 
-    // B. Terrifying Demonic Face
+    // Demonic Face
     ctx.fillStyle = '#e2daf0';
     ctx.beginPath();
     ctx.ellipse(0, -60, 65, 85, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // C. Curved Demon Horns
+    // Demon Horns
     ctx.fillStyle = '#7209b7';
     ctx.beginPath();
     ctx.moveTo(-50, -110);
@@ -622,7 +635,7 @@ class JutsuEffectsEngine {
     ctx.quadraticCurveTo(55, -160, 35, -120);
     ctx.fill();
 
-    // D. Glowing Demonic Eyes
+    // Glowing Eyes
     ctx.fillStyle = '#ff0055';
     ctx.shadowBlur = 20;
     ctx.shadowColor = '#ff0055';
@@ -631,7 +644,7 @@ class JutsuEffectsEngine {
     ctx.arc(26, -72, 8, 0, Math.PI * 2);
     ctx.fill();
 
-    // E. Sealing Tantō Dagger in jaws
+    // Sealing Tantō Dagger
     ctx.fillStyle = '#dcdcdc';
     ctx.strokeStyle = '#3a0ca3';
     ctx.lineWidth = 3;
@@ -640,7 +653,7 @@ class JutsuEffectsEngine {
     ctx.fill();
     ctx.stroke();
 
-    // F. Prayer / Rosary Beads
+    // Rosary Beads
     ctx.fillStyle = '#560bad';
     ctx.shadowBlur = 10;
     ctx.shadowColor = '#9d4edd';
@@ -691,7 +704,7 @@ class JutsuEffectsEngine {
   }
 
   // ==========================================
-  // 6. SHARINGAN ➔ KAMUI RENDERER
+  // 6. SHARINGAN ➔ KAMUI RENDERER (LOCKED TO EYES)
   // ==========================================
   renderSharinganKamui(leftEye, rightEye, eyeDist, w, h, charge) {
     const ctx = this.ctx;
@@ -700,16 +713,14 @@ class JutsuEffectsEngine {
     ctx.save();
     ctx.globalAlpha = Math.min(1.0, charge);
 
-    // Phase 1: Draw Sharingan on both eyes
+    // Draw Sharingan on both detected eyes
     const isMangekyo = this.kamuiTimer > 1.2;
     this.drawSharinganEye(leftEye.x, leftEye.y, eyeRadius, isMangekyo);
     this.drawSharinganEye(rightEye.x, rightEye.y, eyeRadius, isMangekyo);
 
-    // Phase 2: If Mangekyo awakened, spawn the Kamui Spacetime Vortex
+    // Spawn Kamui Spacetime Vortex around the right eye
     if (this.kamuiTimer > 1.8) {
-      const vortexX = rightEye.x;
-      const vortexY = rightEye.y;
-      this.drawKamuiVortex(vortexX, vortexY, w, h, charge);
+      this.drawKamuiVortex(rightEye.x, rightEye.y, w, h, charge);
     }
 
     ctx.restore();
@@ -720,7 +731,6 @@ class JutsuEffectsEngine {
     ctx.save();
     ctx.translate(x, y);
 
-    // Glowing red iris
     ctx.shadowBlur = 18;
     ctx.shadowColor = '#ff0033';
 
@@ -734,7 +744,6 @@ class JutsuEffectsEngine {
     ctx.arc(0, 0, radius, 0, Math.PI * 2);
     ctx.fill();
 
-    // Black outer ring
     ctx.strokeStyle = '#000000';
     ctx.lineWidth = radius * 0.14;
     ctx.beginPath();
@@ -769,7 +778,7 @@ class JutsuEffectsEngine {
         ctx.restore();
       }
     } else {
-      // Kakashi / Obito's Mangekyō Pinwheel
+      // Mangekyō Pinwheel
       ctx.save();
       ctx.rotate(rot * 1.5);
       ctx.fillStyle = '#000000';
@@ -799,7 +808,6 @@ class JutsuEffectsEngine {
     const maxRadius = Math.min(w, h) * 0.45 * charge;
     const vortexSpeed = this.time * 8.0;
 
-    // Spacetime spiral distortion lines
     ctx.lineWidth = 3.0;
     ctx.shadowBlur = 24;
     ctx.shadowColor = '#9d4edd';
@@ -819,7 +827,7 @@ class JutsuEffectsEngine {
       ctx.stroke();
     }
 
-    // Black Hole / Singularity in the center
+    // Black Hole / Singularity
     const singGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxRadius * 0.35);
     singGrad.addColorStop(0, '#000000');
     singGrad.addColorStop(0.5, 'rgba(30, 0, 50, 0.95)');
@@ -862,7 +870,7 @@ class JutsuEffectsEngine {
     this.drawSharinganEye(leftEye.x, leftEye.y, eyeRadius, true);
     this.drawSharinganEye(rightEye.x, rightEye.y, eyeRadius, true);
 
-    // 2. Giant Ethereal Susanoo Chakra Ribcage & Avatar
+    // 2. Giant Ethereal Susanoo Chakra Ribcage & Avatar around user
     const susX = headCenter.x;
     const susY = headCenter.y + h * 0.15;
     const ribSpan = Math.min(w, h) * 0.42 * charge;
